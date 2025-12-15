@@ -295,5 +295,31 @@ document.addEventListener('keydown', function(e) {
 
 requestAnimationFrame(loop);
 </script>
+  <style>
+  .back-btn {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    padding: 10px 20px;
+    border: 2px solid rgba(255, 255, 255, 0.5);
+    border-radius: 30px;
+    color: rgba(255, 255, 255, 0.8);
+    text-decoration: none;
+    font-family: sans-serif;
+    font-weight: bold;
+    font-size: 14px;
+    z-index: 9999; /* Чтобы была поверх игры */
+    transition: all 0.3s ease;
+    background: rgba(0, 0, 0, 0.3); /* Полупрозрачный фон */
+  }
+  .back-btn:hover {
+    background: #fff;
+    color: #000;
+    border-color: #fff;
+    box-shadow: 0 0 15px white;
+    transform: scale(1.1);
+  }
+</style>
+<a href="index.html" class="back-btn">🏠 MENU</a>
 </body>
 </html>
