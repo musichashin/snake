@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Neon Snake</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    /* --- НЕОНОВЫЕ СТИЛИ (CSS) --- */
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: #000000; /* Абсолютно черный фон */
+      color: #0ff; /* Основной цвет текста - голубой неон */
+      font-family: 'Orbitron', sans-serif; /* Футуристичный шрифт */
+      touch-action: none; 
+      user-select: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      overflow: hidden;
+    }
+
+    /* Верхняя панель */
+    #score-board {
+        width: 90vmin;
+        max-width: 600px;
+        display: flex;
+        justify-content: space-between;
+        padding: 15px 0;
+        font-size: 18px;
+        font-weight: bold;
+        text-shadow: 0 0 5px #0ff; /* Светящийся текст */
+    }
+    .score-box span { color: #39ff14; text-shadow: 0 0 10px #39ff14; } /* Зеленый счет */
+
+    /* Поле игры */
+    canvas {
+      /* Неоновая рамка вокруг поля */
+      border: 2px solid #0ff;
+      background-color: #050505; /* Почти черный фон внутри */
+      width: 90vmin; 
+      height: 90vmin;
+      max-width: 600px;
+      max-height: 600px;
+      /* Синее свечение вокруг всего поля */
+      box-shadow: 0 0 20px rgba(0, 255, 255, 0.3), inset 0 0 20px rgba(0, 255, 255, 0.1);
+      border-radius: 5px;
+    }
+
+    /* Кнопки */
+    #controls {
+        margin-top: 20px;
+        display: grid;
+        grid-template-columns: repeat(3, 70px);
+        grid-template-rows: repeat(2, 70px);
+        gap: 10px;
+    }
+
+    .btn {
+        background: #111; /* Темные кнопки */
+        border: 2px solid #0ff; /* Синяя неоновая рамка */
+        border-radius: 15px;
+        color: #0ff;
+        font-size: 30px;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        /* Слабое свечение кнопок */
+        box-shadow: 0 0 10px rgba(0, 255, 255, 0.2);
+        transition: all 0.1s ease;
+    }
+    .btn:active {
+        background: #0ff; /* При нажатии кнопка вспыхивает */
+        color: #000;
+        box-shadow: 0 0 20px rgba(0, 255, 255, 0.8);
+        transform: scale(0.95);
+    }
+
+    #upBtn { grid-area: 1 / 2 / 2 / 3; }
+    #leftBtn { grid-area: 2 / 1 / 3 / 2; }
+    #downBtn { grid-area: 2 / 2 / 3 / 3; }
+    #rightBtn { grid-area: 2 / 3 / 3 / 4; }
+
+    /* Оверлей Старт / Конец */
+    #overlay {
+        position: absolute;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.9);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+    }
+    #overlay h1 { 
+        margin: 0 0 20px 0; font-size: 40px; 
+        color: #ff00ff; /* Розовый заголовок */
+        text-shadow: 0 0 20px #ff00ff;
+    }
+    #status-text { font-size: 20px; margin-bottom: 30px; text-align: center; color: #ddd;}
+    
+    #action-btn {
+        padding: 15px 40px;
+        font-size: 24px;
+        background: transparent;
+        color: #39ff14;
+        border: 3px solid #39ff14;
+        border-radius: 50px;
+        font-weight: bold;
+        font-family: 'Orbitron', sans-serif;
+        cursor: pointer;
+        /* Зеленое свечение кнопки старта */
+        box-shadow: 0 0 15px rgba(57, 255, 20, 0.4);
+        text-shadow: 0 0 5px #39ff14;
+    }
+    #action-btn:active {
+         background: #39ff14;
+         color: black;
+         box-shadow: 0 0 30px rgba(57, 255, 20, 1);
+    }
+  </style>
+</head>
+<body>
+
+<div id="score-board">
+    <div class="score-box">SCORE: <span id="currentScore">0</span></div>
+    <div class="score-box">BEST: <span id="bestScore">0</span></div>
+</div>
+
+<canvas width="640" height="640" id="game"></canvas>
+
+<div id="overlay">
+    <h1 id="overlay-title">NEON SNAKE</h1>
+    <p id="status-text">SYSTEM READY. PRESS START.</p>
+    <button id="action-btn" onclick="startGame()">INITIALIZE</button>
+</div>
+
+<div id="controls">
+  <button id="upBtn" class="btn">↑</button>
+  <button id="leftBtn" class="btn">←</button>
+  <button id="downBtn" class="btn">↓</button>
+  <button id="rightBtn" class="btn">→</button>
+</div>
+
+<script>
+// --- ИНИЦИАЛИЗАЦИЯ ---
+var canvas = document.getElementById('game');
+var context = canvas.getContext('2d');
+
+var grid = 32; 
+var count = 0;
+var score = 0;
+var highScore = 0;
+var gameRunning = false;
+
+try {
+    highScore = localStorage.getItem('snakeHighScore') || 0;
+} catch (e) { console.log("LocalStorage blocked"); }
+document.getElementById('bestScore').innerText = highScore;
+
+var snake = {
+  x: 320, y: 320, dx: grid, dy: 0,
+  cells: [{x: 320, y: 320}, {x: 288, y: 320}, {x: 256, y: 320}],
+  maxCells: 3
+};
+var apple = { x: 320, y: 160 };
+
+function getRandomInt(min, max) {
+  return Math.floor(Math.random() * (max - min)) + min;
+}
+
+// --- ИГРОВОЙ ЦИКЛ С НЕОНОВОЙ ОТРИСОВКОЙ ---
+function loop() {
+  requestAnimationFrame(loop);
+  if (!gameRunning) return;
+  if (++count < 6) { return; }
+  count = 0;
+
+  context.clearRect(0,0,canvas.width,canvas.height);
+
+  snake.x += snake.dx;
+  snake.y += snake.dy;
+
+  if (snake.x < 0) { snake.x = canvas.width - grid; }
+  else if (snake.x >= canvas.width) { snake.x = 0; }
+  if (snake.y < 0) { snake.y = canvas.height - grid; }
+  else if (snake.y >= canvas.height) { snake.y = 0; }
+
+  snake.cells.unshift({x: snake.x, y: snake.y});
+  if (snake.cells.length > snake.maxCells) {
+    snake.cells.pop();
+  }
+
+  // --- РИСУЕМ ЯБЛОКО (НЕОН) ---
+  // Включаем свечение
+  context.shadowBlur = 20;       // Радиус свечения
+  context.shadowColor = "#ff00ff"; // Цвет свечения (Маджента)
+  context.fillStyle = '#ff00ff';   // Цвет самой еды
+  // Рисуем
+  context.fillRect(apple.x + 4, apple.y + 4, grid - 8, grid - 8);
+  // ВАЖНО: Сбрасываем свечение, чтобы оно не влияло на другие объекты
+  context.shadowBlur = 0;
+
+
+  // --- РИСУЕМ ЗМЕЙКУ (НЕОН) ---
+  snake.cells.forEach(function(cell, index) {
+    // Включаем свечение для змейки
+    context.shadowBlur = 15;
+    context.shadowColor = "#39ff14"; // Цвет свечения (Кислотно-зеленый)
+    context.fillStyle = '#39ff14';   // Цвет змейки
+    
+    // Рисуем сегмент (чуть меньше клетки, чтобы были зазоры)
+    context.fillRect(cell.x + 2, cell.y + 2, grid - 4, grid - 4);
+    // Сбрасываем свечение
+    context.shadowBlur = 0;
+    
+    if (cell.x === apple.x && cell.y === apple.y) {
+      snake.maxCells++; score++;
+      document.getElementById('currentScore').innerText = score;
+      apple.x = getRandomInt(0, 20) * grid;
+      apple.y = getRandomInt(0, 20) * grid;
+    }
+
+    for (var i = index + 1; i < snake.cells.length; i++) {
+      if (cell.x === snake.cells[i].x && cell.y === snake.cells[i].y) {
+        gameOver();
+      }
+    }
+  });
+}
+
+function gameOver() {
+    gameRunning = false;
+    var finalScoreText = "SCORE: " + score;
+    var titleText = "SYSTEM FAILURE";
+    var titleColor = "#ff0000"; // Красный
+
+    if (score > highScore) {
+        highScore = score;
+        try { localStorage.setItem('snakeHighScore', highScore); } catch(e){}
+        document.getElementById('bestScore').innerText = highScore;
+        finalScoreText = "🏆 NEW HIGH SCORE: " + score;
+        titleText = "NEW RECORD!";
+        titleColor = "#39ff14"; // Зеленый
+    }
+
+    document.getElementById('overlay-title').innerText = titleText;
+    document.getElementById('overlay-title').style.color = titleColor;
+    document.getElementById('overlay-title').style.textShadow = `0 0 20px ${titleColor}`;
+    document.getElementById('status-text').innerText = finalScoreText;
+    document.getElementById('action-btn').innerText = "REBOOT SYSTEM";
+    document.getElementById('overlay').style.display = 'flex';
+}
+
+function startGame() {
+    snake.x = 320; snake.y = 320;
+    snake.cells = [{x: 320, y: 320}, {x: 288, y: 320}, {x: 256, y: 320}];
+    snake.maxCells = 3;
+    snake.dx = grid; snake.dy = 0;
+    score = 0;
+    document.getElementById('currentScore').innerText = '0';
+    apple.x = getRandomInt(0, 20) * grid;
+    apple.y = getRandomInt(0, 20) * grid;
+    document.getElementById('overlay').style.display = 'none';
+    gameRunning = true;
+}
+
+// --- УПРАВЛЕНИЕ ---
+function moveUp() { if (snake.dy === 0) { snake.dy = -grid; snake.dx = 0; } }
+function moveDown() { if (snake.dy === 0) { snake.dy = grid; snake.dx = 0; } }
+function moveLeft() { if (snake.dx === 0) { snake.dx = -grid; snake.dy = 0; } }
+function moveRight() { if (snake.dx === 0) { snake.dx = grid; snake.dy = 0; } }
+
+const upBtn = document.getElementById('upBtn');
+const downBtn = document.getElementById('downBtn');
+const leftBtn = document.getElementById('leftBtn');
+const rightBtn = document.getElementById('rightBtn');
+
+['touchstart', 'mousedown'].forEach(evt => {
+    upBtn.addEventListener(evt, (e) => { e.preventDefault(); moveUp(); });
+    downBtn.addEventListener(evt, (e) => { e.preventDefault(); moveDown(); });
+    leftBtn.addEventListener(evt, (e) => { e.preventDefault(); moveLeft(); });
+    rightBtn.addEventListener(evt, (e) => { e.preventDefault(); moveRight(); });
+});
+
+document.addEventListener('keydown', function(e) {
+  if (e.which === 37) moveLeft();
+  else if (e.which === 38) moveUp();
+  else if (e.which === 39) moveRight();
+  else if (e.which === 40) moveDown();
+});
+
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
