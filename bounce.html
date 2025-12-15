@@ -6,10 +6,10 @@
   <style>
     body {
       margin: 0;
-      background: #222;
+      background: #111;
       overflow: hidden;
-      font-family: sans-serif;
-      touch-action: none; /* Отключаем жесты браузера */
+      font-family: 'Courier New', sans-serif;
+      touch-action: none;
       user-select: none;
     }
     canvas {
@@ -17,7 +17,16 @@
       width: 100%;
       height: 100%;
     }
-    /* Кнопки управления */
+    #ui-layer {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      color: #0ff;
+      font-size: 20px;
+      font-weight: bold;
+      text-shadow: 0 0 5px #0ff;
+      pointer-events: none;
+    }
     #controls {
       position: absolute;
       bottom: 20px;
@@ -26,7 +35,7 @@
       justify-content: space-between;
       padding: 0 20px;
       box-sizing: border-box;
-      pointer-events: none; /* Чтобы клики проходили сквозь контейнер */
+      pointer-events: none;
     }
     .btn {
       width: 80px;
@@ -39,25 +48,17 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      pointer-events: auto; /* Кнопки кликабельны */
+      pointer-events: auto;
       backdrop-filter: blur(5px);
     }
-    .btn:active {
-      background: rgba(255, 255, 255, 0.4);
-    }
-    /* Правая часть управления (Jump) */
-    .right-controls {
-      display: flex;
-    }
-    /* Левая часть (Arrows) */
-    .left-controls {
-      display: flex;
-      gap: 15px;
-    }
+    .btn:active { background: rgba(255, 255, 255, 0.4); }
+    .right-controls { display: flex; }
+    .left-controls { display: flex; gap: 15px; }
   </style>
 </head>
 <body>
 
+<div id="ui-layer">LEVEL: <span id="levelDisplay">1</span></div>
 <canvas id="gameCanvas"></canvas>
 
 <div id="controls">
@@ -73,43 +74,73 @@
 <script>
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
+const levelDisplay = document.getElementById('levelDisplay');
 
-// --- НАСТРОЙКИ ---
+// --- НАСТРОЙКИ ФИЗИКИ ---
 let width, height;
 const gravity = 0.5;
-const friction = 0.8; // Замедление при движении
-const jumpForce = -10;
-const moveSpeed = 5;
+const friction = 0.8; 
+const jumpForce = -12; // Чуть выше прыжок
+const moveSpeed = 6;
 
-// Карта уровня (1 = платформа, 0 = пусто)
-// Мы используем простые блоки для начала
-const levelData = [
-  {x: 0, y: 300, w: 800, h: 50},   // Пол начальный
-  {x: 300, y: 200, w: 100, h: 20}, // Платформа 1
-  {x: 500, y: 150, w: 100, h: 20}, // Платформа 2
-  {x: 700, y: 250, w: 100, h: 20}, // Платформа 3
-  {x: 900, y: 300, w: 500, h: 50}, // Пол дальний
-  {x: 1200, y: 200, w: 100, h: 20} // Высокая платформа
+// --- УРОВНИ ---
+// type: 'block' (обычный пол) или 'win' (финиш уровня, зеленый)
+const levels = [
+  // УРОВЕНЬ 1: Разминка (длинный)
+  [
+    {x: 0, y: 300, w: 1000, h: 50, type: 'block'}, // Старт
+    {x: 400, y: 200, w: 100, h: 20, type: 'block'},
+    {x: 600, y: 150, w: 100, h: 20, type: 'block'},
+    {x: 1100, y: 250, w: 400, h: 50, type: 'block'},
+    {x: 1600, y: 300, w: 500, h: 50, type: 'block'}, // Длинный пробег
+    {x: 2000, y: 200, w: 50, h: 100, type: 'win'}    // ФИНИШ
+  ],
+  
+  // УРОВЕНЬ 2: Острова (нужно прыгать точно)
+  [
+    {x: 0, y: 300, w: 200, h: 50, type: 'block'},
+    {x: 300, y: 300, w: 100, h: 20, type: 'block'},
+    {x: 500, y: 250, w: 80, h: 20, type: 'block'},
+    {x: 700, y: 200, w: 80, h: 20, type: 'block'},
+    {x: 900, y: 150, w: 80, h: 20, type: 'block'},
+    {x: 1100, y: 300, w: 200, h: 50, type: 'block'},
+    {x: 1400, y: 200, w: 50, h: 20, type: 'block'},
+    {x: 1600, y: 250, w: 50, h: 100, type: 'win'} // ФИНИШ
+  ],
+
+  // УРОВЕНЬ 3: Большая стена
+  [
+    {x: 0, y: 350, w: 300, h: 50, type: 'block'},
+    {x: 300, y: 250, w: 50, h: 20, type: 'block'}, // Ступенька 1
+    {x: 400, y: 150, w: 50, h: 20, type: 'block'}, // Ступенька 2
+    {x: 500, y: 50, w: 50, h: 20, type: 'block'},  // Ступенька 3 (высоко)
+    {x: 700, y: 350, w: 1000, h: 50, type: 'block'}, // Пол внизу
+    {x: 1000, y: 250, w: 50, h: 100, type: 'block'}, // Препятствие
+    {x: 1200, y: 150, w: 50, h: 20, type: 'block'},
+    {x: 1500, y: 300, w: 50, h: 50, type: 'win'} // ФИНИШ
+  ]
 ];
 
-// Игрок (Шар)
-const player = {
-  x: 100,
-  y: 100,
-  radius: 15,
-  dx: 0,
-  dy: 0,
-  grounded: false
-};
+// --- СОСТОЯНИЕ ИГРЫ ---
+let currentLevelIndex = 0;
+let currentLevelData = [];
+const player = { x: 50, y: 100, radius: 15, dx: 0, dy: 0, grounded: false };
+const keys = { left: false, right: false, jump: false };
 
-// Управление
-const keys = {
-  left: false,
-  right: false,
-  jump: false
-};
+function loadLevel(index) {
+  if (index >= levels.length) index = 0; // Если уровни кончились, начинаем сначала
+  currentLevelIndex = index;
+  currentLevelData = levels[currentLevelIndex];
+  
+  // Сброс игрока
+  player.x = 50;
+  player.y = 0; // Падаем сверху
+  player.dx = 0;
+  player.dy = 0;
+  
+  levelDisplay.innerText = currentLevelIndex + 1;
+}
 
-// Настройка размера экрана
 function resize() {
   width = window.innerWidth;
   height = window.innerHeight;
@@ -118,99 +149,97 @@ function resize() {
 }
 window.addEventListener('resize', resize);
 resize();
+loadLevel(0); // Загружаем первый уровень
 
-// --- ФИЗИКА И ОБНОВЛЕНИЕ ---
+// --- ФИЗИКА ---
 function update() {
-  // 1. Применяем управление
-  if (keys.right) {
-    if (player.dx < moveSpeed) player.dx++;
-  }
-  if (keys.left) {
-    if (player.dx > -moveSpeed) player.dx--;
-  }
-
-  // Трение (чтобы шар останавливался)
+  // Управление
+  if (keys.right) if (player.dx < moveSpeed) player.dx++;
+  if (keys.left) if (player.dx > -moveSpeed) player.dx--;
+  
   player.dx *= friction;
-
-  // 2. Гравитация
   player.dy += gravity;
 
-  // Прыжок (только если на земле)
   if (keys.jump && player.grounded) {
     player.dy = jumpForce;
     player.grounded = false;
   }
 
-  // 3. Движение
   player.x += player.dx;
   player.y += player.dy;
+  player.grounded = false;
 
-  // 4. Столкновения (Коллизии)
-  player.grounded = false; // Считаем, что мы в воздухе, пока не докажем обратное
-
-  // Проверка пола и платформ
-  levelData.forEach(block => {
-    // Простейшая проверка: находится ли шар над блоком по X и касается ли по Y
-    if (player.x > block.x - player.radius && 
-        player.x < block.x + block.w + player.radius) {
+  // Проверка столкновений
+  currentLevelData.forEach(block => {
+    // Попадание в пределы блока по X
+    if (player.x > block.x - player.radius && player.x < block.x + block.w + player.radius) {
       
-      // Падение сверху на платформу
+      // Сверху на блок
       if (player.y + player.radius > block.y && 
           player.y + player.radius < block.y + block.h + 10 && 
           player.dy >= 0) {
             
-        player.y = block.y - player.radius; // Ставим шар на блок
-        player.dy = -player.dy * 0.4; // Небольшой отскок
-        if(Math.abs(player.dy) < 1) player.dy = 0; // Останавливаем дрожание
+        // Если это ФИНИШ
+        if (block.type === 'win') {
+            loadLevel(currentLevelIndex + 1);
+            return;
+        }
+
+        player.y = block.y - player.radius;
+        player.dy = -player.dy * 0.4;
+        if(Math.abs(player.dy) < 1) player.dy = 0;
         player.grounded = true;
       }
     }
   });
 
-  // Упал в пропасть? Респаун
-  if (player.y > height + 100) {
-    player.x = 100;
-    player.y = 100;
-    player.dx = 0;
-    player.dy = 0;
+  // Упал в пропасть
+  if (player.y > height + 200) {
+    loadLevel(currentLevelIndex); // Рестарт уровня
   }
 }
 
 // --- ОТРИСОВКА ---
 function draw() {
-  // Очистка
   ctx.clearRect(0, 0, width, height);
 
-  // КАМЕРА: Сдвигаем мир так, чтобы шар был в центре по горизонтали
-  // Но не даем камере уйти слишком далеко влево (меньше 0)
-  let cameraX = player.x - width / 2;
+  // Камера
+  let cameraX = player.x - width / 3;
   if (cameraX < 0) cameraX = 0;
 
-  ctx.save(); // Сохраняем состояние
-  ctx.translate(-cameraX, 0); // Сдвигаем мир влево
+  ctx.save();
+  ctx.translate(-cameraX, 0);
 
-  // Рисуем платформы
-  ctx.fillStyle = '#0ff'; // Неоновый голубой
-  ctx.shadowBlur = 10;
-  ctx.shadowColor = '#0ff';
-  levelData.forEach(block => {
+  // Рисуем блоки
+  currentLevelData.forEach(block => {
+    if (block.type === 'win') {
+        // Зеленый портал
+        ctx.fillStyle = '#0f0';
+        ctx.shadowColor = '#0f0';
+    } else {
+        // Обычная платформа
+        ctx.fillStyle = '#0ff';
+        ctx.shadowColor = '#0ff';
+    }
+    ctx.shadowBlur = 15;
     ctx.fillRect(block.x, block.y, block.w, block.h);
   });
-  ctx.shadowBlur = 0; // Выключаем свечение для остального
+  
+  ctx.shadowBlur = 0;
 
-  // Рисуем игрока (Шар)
+  // Игрок
   ctx.beginPath();
   ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
-  ctx.fillStyle = '#ff0044'; // Красный шар
+  ctx.fillStyle = '#ff0044';
   ctx.fill();
   
-  // Блик на шаре (объем)
+  // Блик
   ctx.beginPath();
   ctx.arc(player.x - 5, player.y - 5, 5, 0, Math.PI * 2);
   ctx.fillStyle = 'rgba(255,255,255,0.5)';
   ctx.fill();
   
-  ctx.restore(); // Возвращаем координаты на место (для кнопок интерфейса)
+  ctx.restore();
 }
 
 function loop() {
@@ -219,24 +248,21 @@ function loop() {
   requestAnimationFrame(loop);
 }
 
-// --- ОБРАБОТЧИКИ НАЖАТИЙ ---
+// --- КНОПКИ ---
 const btnLeft = document.getElementById('btnLeft');
 const btnRight = document.getElementById('btnRight');
 const btnJump = document.getElementById('btnJump');
 
-// Функция для привязки кнопок
 function bindTouch(btn, code) {
   btn.addEventListener('touchstart', (e) => { e.preventDefault(); keys[code] = true; });
   btn.addEventListener('touchend', (e) => { e.preventDefault(); keys[code] = false; });
   btn.addEventListener('mousedown', (e) => { e.preventDefault(); keys[code] = true; });
   btn.addEventListener('mouseup', (e) => { e.preventDefault(); keys[code] = false; });
 }
-
 bindTouch(btnLeft, 'left');
 bindTouch(btnRight, 'right');
 bindTouch(btnJump, 'jump');
 
-// Клавиатура (для ПК)
 document.addEventListener('keydown', (e) => {
   if (e.code === 'ArrowLeft') keys.left = true;
   if (e.code === 'ArrowRight') keys.right = true;
@@ -248,7 +274,6 @@ document.addEventListener('keyup', (e) => {
   if (e.code === 'Space' || e.code === 'ArrowUp') keys.jump = false;
 });
 
-// Запуск
 loop();
 </script>
 </body>
