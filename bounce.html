@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Neon Bounce PRO</title>
+  <title>Neon Bounce STABLE</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <style>
     body {
@@ -58,7 +58,7 @@
 </head>
 <body>
 
-<div id="ui-layer">DEATH ZONE: LVL <span id="levelDisplay">1</span></div>
+<div id="ui-layer">LEVEL <span id="levelDisplay">1</span></div>
 <canvas id="gameCanvas"></canvas>
 
 <div id="controls">
@@ -76,16 +76,16 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const levelDisplay = document.getElementById('levelDisplay');
 
-// --- НОВАЯ ФИЗИКА ---
+// --- ФИЗИКА (СТАБИЛЬНАЯ) ---
 let width, height;
 const gravity = 0.6; 
 const friction = 0.85; 
-const jumpForce = -14; // Максимальная высота прыжка (если держать)
+const jumpForce = -13; // Всегда одинаковый прыжок
 const moveSpeed = 6;
 
-// --- УРОВНИ (Те же хардкорные) ---
+// --- УРОВНИ ---
 const levels = [
-  // УРОВЕНЬ 1: Пол это лава
+  // УРОВЕНЬ 1: Пол это лава (Классика)
   [
     {x: 0, y: 300, w: 200, h: 50, type: 'block'}, 
     {x: 0, y: 400, w: 3000, h: 50, type: 'danger'}, 
@@ -99,11 +99,12 @@ const levels = [
     {x: 1800, y: 250, w: 50, h: 100, type: 'win'}   
   ],
   
-  // УРОВЕНЬ 2: Тоннель смерти (Теперь проходим!)
+  // УРОВЕНЬ 2: Тоннель (ТЕПЕРЬ БЕЗ ПОТОЛКА)
   [
     {x: 0, y: 300, w: 200, h: 50, type: 'block'},
-    {x: 200, y: 350, w: 2000, h: 50, type: 'danger'}, 
-    {x: 300, y: 0, w: 2000, h: 100, type: 'danger'}, // Низкий потолок!
+    {x: 200, y: 350, w: 2000, h: 50, type: 'danger'}, // Пол все еще опасен!
+
+    // Потолок удален! Прыгай сколько хочешь.
 
     {x: 300, y: 250, w: 100, h: 20, type: 'block'},
     {x: 500, y: 250, w: 50, h: 20, type: 'block'},
@@ -112,11 +113,11 @@ const levels = [
     {x: 1000, y: 200, w: 50, h: 20, type: 'block'},
     {x: 1200, y: 250, w: 50, h: 20, type: 'block'},
     
-    {x: 1400, y: 150, w: 200, h: 20, type: 'block'}, 
+    {x: 1400, y: 150, w: 200, h: 20, type: 'block'}, // Отдых
     {x: 1700, y: 250, w: 50, h: 100, type: 'win'}
   ],
 
-  // УРОВЕНЬ 3: Вертикаль
+  // УРОВЕНЬ 3: Вертикаль (Башня)
   [
     {x: 0, y: 500, w: 300, h: 50, type: 'block'},
     {x: 300, y: 500, w: 1000, h: 50, type: 'danger'}, 
@@ -130,7 +131,7 @@ const levels = [
     {x: 900, y: 300, w: 60, h: 20, type: 'block'},
     {x: 1100, y: 400, w: 60, h: 20, type: 'block'},
     
-    {x: 1300, y: 350, w: 20, h: 150, type: 'danger'}, 
+    {x: 1300, y: 350, w: 20, h: 150, type: 'danger'}, // Стена шипов осталась
     {x: 1350, y: 250, w: 100, h: 20, type: 'block'}, 
     
     {x: 1600, y: 400, w: 50, h: 50, type: 'win'}
@@ -169,18 +170,12 @@ function update() {
   player.dx *= friction;
   player.dy += gravity;
 
-  // 1. Старт прыжка (если на земле)
+  // Прыжок (Простой и надежный)
   if (keys.jump && player.grounded) {
     player.dy = jumpForce;
     player.grounded = false;
   }
-
-  // 2. Variable Jump Height (ПРЕРЫВАНИЕ ПРЫЖКА)
-  // Если мы летим вверх (dy < 0) и ОТПУСТИЛИ кнопку (!keys.jump)
-  // То мы гасим скорость в 2 раза
-  if (player.dy < -2 && !keys.jump) {
-      player.dy *= 0.5;
-  }
+  // УБРАН БЛОК ГАШЕНИЯ ПРЫЖКА
 
   player.x += player.dx;
   player.y += player.dy;
@@ -196,7 +191,7 @@ function update() {
 
       if (player.dy > 0 && player.y < block.y) {
          player.y = block.y - player.radius;
-         player.dy = 0; // Убрали отскок для точности управления
+         player.dy = 0; 
          player.grounded = true;
       }
       else if (player.dy < 0 && player.y > block.y + block.h) {
@@ -232,7 +227,6 @@ function draw() {
     else ctx.fillRect(block.x, block.y, block.w, block.h);
   });
 
-  // Белый шар
   ctx.beginPath();
   ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
   ctx.fillStyle = '#fff'; ctx.shadowColor = '#fff'; ctx.shadowBlur = 10;
@@ -252,7 +246,6 @@ function bindTouch(btn, code) {
   btn.addEventListener('touchend', (e) => { e.preventDefault(); keys[code] = false; });
   btn.addEventListener('mousedown', (e) => { e.preventDefault(); keys[code] = true; });
   btn.addEventListener('mouseup', (e) => { e.preventDefault(); keys[code] = false; });
-  // Если палец ушел с кнопки, тоже считаем что отпустил
   btn.addEventListener('mouseleave', (e) => { e.preventDefault(); keys[code] = false; });
 }
 bindTouch(btnLeft, 'left');
