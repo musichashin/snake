@@ -295,31 +295,28 @@ document.addEventListener('keydown', function(e) {
 
 requestAnimationFrame(loop);
 </script>
-  <style>
-  .back-btn {
-    position: absolute;
-    top: 20px;
-    right: 20px;
-    padding: 10px 20px;
-    border: 2px solid rgba(255, 255, 255, 0.5);
-    border-radius: 30px;
-    color: rgba(255, 255, 255, 0.8);
+ <style>
+  .home-btn {
+    position: fixed; /* Фиксируем относительно экрана, а не страницы */
+    top: 15px;
+    right: 15px;
+    padding: 8px 15px;
+    background: rgba(0, 0, 0, 0.8); /* Темный фон, чтобы текст читался */
+    border: 1px solid #0f0; /* Зеленая рамка под стиль змейки */
+    border-radius: 20px;
+    color: #0f0;
     text-decoration: none;
-    font-family: sans-serif;
+    font-family: 'Courier New', monospace;
     font-weight: bold;
-    font-size: 14px;
-    z-index: 9999; /* Чтобы была поверх игры */
-    transition: all 0.3s ease;
-    background: rgba(0, 0, 0, 0.3); /* Полупрозрачный фон */
+    font-size: 16px;
+    z-index: 100000; /* Самый верхний слой */
+    box-shadow: 0 0 10px #0f0; /* Неоновое свечение */
   }
-  .back-btn:hover {
-    background: #fff;
+  .home-btn:active {
+    background: #0f0;
     color: #000;
-    border-color: #fff;
-    box-shadow: 0 0 15px white;
-    transform: scale(1.1);
   }
 </style>
-<a href="index.html" class="back-btn">🏠 MENU</a>
+<a href="index.html" class="home-btn">🏠 MENU</a>
 </body>
 </html>
