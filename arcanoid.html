@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Neon Arkanoid</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <style>
+    body {
+      margin: 0;
+      background: #000;
+      overflow: hidden;
+      font-family: 'Courier New', sans-serif;
+      touch-action: none; /* Отключаем зум и скролл */
+      cursor: none; /* Скрываем курсор во время игры */
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    #ui {
+      position: absolute;
+      top: 20px;
+      width: 100%;
+      text-align: center;
+      pointer-events: none;
+      z-index: 10;
+    }
+    .score-board {
+      color: #0ff;
+      font-size: 24px;
+      font-weight: bold;
+      text-shadow: 0 0 10px #0ff;
+    }
+    #message {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: #fff;
+      font-size: 30px;
+      font-weight: bold;
+      text-shadow: 0 0 20px #f0f;
+      display: none;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+<div id="ui">
+  <div class="score-board">SCORE: <span id="score">0</span></div>
+</div>
+
+<div id="message">TAP TO START</div>
+
+<canvas id="gameCanvas"></canvas>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const scoreSpan = document.getElementById('score');
+const msgDiv = document.getElementById('message');
+
+// --- НАСТРОЙКИ ---
+let width, height;
+let gameRunning = false;
+let score = 0;
+
+// Шар
+const ball = {
+  x: 0, 
+  y: 0, 
+  dx: 0, 
+  dy: 0, 
+  radius: 8,
+  speed: 7,
+  color: '#fff'
+};
+
+// Ракетка
+const paddle = {
+  x: 0,
+  y: 0,
+  width: 120,
+  height: 20,
+  color: '#0ff'
+};
+
+// Кирпичи
+const brickConfig = {
+  rows: 5,
+  cols: 7,
+  padding: 10,
+  height: 25,
+  width: 0, // Вычислим позже
+  offsetTop: 80,
+  offsetLeft: 35
+};
+let bricks = [];
+
+// --- ИНИЦИАЛИЗАЦИЯ ---
+function resize() {
+  width = window.innerWidth;
+  height = window.innerHeight;
+  canvas.width = width;
+  canvas.height = height;
+
+  // Настройка размеров под экран
+  paddle.y = height - 50;
+  
+  // Пересчет кирпичей под ширину экрана
+  brickConfig.cols = Math.floor(width / 60); // Сколько влезает
+  if (brickConfig.cols > 10) brickConfig.cols = 10;
+  
+  let totalPadding = (brickConfig.cols + 1) * brickConfig.padding;
+  brickConfig.width = (width - totalPadding) / brickConfig.cols;
+  brickConfig.offsetLeft = brickConfig.padding;
+
+  if (!gameRunning) resetGame();
+}
+window.addEventListener('resize', resize);
+
+function initBricks() {
+  bricks = [];
+  for(let c=0; c<brickConfig.cols; c++) {
+    bricks[c] = [];
+    for(let r=0; r<brickConfig.rows; r++) {
+      bricks[c][r] = { x: 0, y: 0, status: 1, color: getRowColor(r) };
+    }
+  }
+}
+
+function getRowColor(row) {
+  const colors = ['#f00', '#ff0', '#0f0', '#0ff', '#f0f'];
+  return colors[row % colors.length];
+}
+
+function resetGame() {
+  gameRunning = false;
+  score = 0;
+  scoreSpan.innerText = score;
+  
+  ball.x = width / 2;
+  ball.y = height - 60;
+  ball.dx = 0; // Ждем старта
+  ball.dy = 0;
+  
+  paddle.x = (width - paddle.width) / 2;
+  
+  initBricks();
+  msgDiv.style.display = 'block';
+  msgDiv.innerText = "TAP TO START";
+  draw();
+}
+
+function startGame() {
+  if (gameRunning) return;
+  gameRunning = true;
+  msgDiv.style.display = 'none';
+  
+  // Случайный угол старта
+  let dir = Math.random() < 0.5 ? -1 : 1;
+  ball.dx = (Math.random() * 4 + 2) * dir;
+  ball.dy = -ball.speed;
+  
+  loop();
+}
+
+// --- ФИЗИКА ---
+function update() {
+  if (!gameRunning) return;
+
+  // Движение шара
+  ball.x += ball.dx;
+  ball.y += ball.dy;
+
+  // Отскок от стен
+  if(ball.x + ball.radius > width || ball.x - ball.radius < 0) {
+    ball.dx = -ball.dx;
+  }
+  if(ball.y - ball.radius < 0) {
+    ball.dy = -ball.dy;
+  }
+  
+  // Проигрыш (упал вниз)
+  if(ball.y + ball.radius > height) {
+    msgDiv.innerText = "GAME OVER";
+    msgDiv.style.display = 'block';
+    gameRunning = false;
+    setTimeout(resetGame, 2000); // Рестарт через 2 сек
+    return;
+  }
+
+  // Отскок от ракетки
+  if(ball.x > paddle.x && ball.x < paddle.x + paddle.width &&
+     ball.y + ball.radius > paddle.y && ball.y - ball.radius < paddle.y + paddle.height) {
+       
+       // Магия физики: угол отскока зависит от того, куда попал шар
+       let hitPoint = ball.x - (paddle.x + paddle.width / 2);
+       // Нормализуем (-1 левый край, 1 правый край)
+       hitPoint = hitPoint / (paddle.width / 2);
+       
+       // Изменяем угол
+       ball.dx = hitPoint * 8; // Резкий угол по краям
+       ball.dy = -Math.abs(ball.speed); // Всегда вверх
+  }
+
+  // Столкновение с кирпичами
+  let activeBricks = 0;
+  for(let c=0; c<brickConfig.cols; c++) {
+    for(let r=0; r<brickConfig.rows; r++) {
+      let b = bricks[c][r];
+      if(b.status == 1) {
+        activeBricks++;
+        if(ball.x > b.x && ball.x < b.x + brickConfig.width &&
+           ball.y > b.y && ball.y < b.y + brickConfig.height) {
+             ball.dy = -ball.dy;
+             b.status = 0; // Разбили
+             score += 10;
+             scoreSpan.innerText = score;
+             // Ускоряем шар немного с каждым кирпичом
+             if(Math.abs(ball.speed) < 12) ball.speed += 0.1; 
+        }
+      }
+    }
+  }
+  
+  if (activeBricks === 0) {
+    msgDiv.innerText = "YOU WIN!";
+    msgDiv.style.display = 'block';
+    gameRunning = false;
+    setTimeout(resetGame, 3000);
+  }
+}
+
+// --- ОТРИСОВКА ---
+function draw() {
+  ctx.clearRect(0, 0, width, height);
+
+  // Кирпичи
+  for(let c=0; c<brickConfig.cols; c++) {
+    for(let r=0; r<brickConfig.rows; r++) {
+      if(bricks[c][r].status == 1) {
+        let brickX = (c * (brickConfig.width + brickConfig.padding)) + brickConfig.offsetLeft;
+        let brickY = (r * (brickConfig.height + brickConfig.padding)) + brickConfig.offsetTop;
+        bricks[c][r].x = brickX;
+        bricks[c][r].y = brickY;
+        
+        ctx.fillStyle = bricks[c][r].color;
+        ctx.shadowColor = bricks[c][r].color;
+        ctx.shadowBlur = 15;
+        ctx.fillRect(brickX, brickY, brickConfig.width, brickConfig.height);
+      }
+    }
+  }
+
+  // Ракетка
+  ctx.fillStyle = paddle.color;
+  ctx.shadowColor = paddle.color;
+  ctx.shadowBlur = 20;
+  ctx.fillRect(paddle.x, paddle.y, paddle.width, paddle.height);
+
+  // Шар
+  ctx.beginPath();
+  ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI*2);
+  ctx.fillStyle = ball.color;
+  ctx.shadowColor = '#fff';
+  ctx.shadowBlur = 10;
+  ctx.fill();
+  ctx.closePath();
+}
+
+function loop() {
+  if (gameRunning) {
+    update();
+    draw();
+    requestAnimationFrame(loop);
+  }
+}
+
+// --- УПРАВЛЕНИЕ ---
+// Мышь
+document.addEventListener("mousemove", (e) => {
+  let relativeX = e.clientX;
+  if(relativeX > 0 && relativeX < width) {
+    paddle.x = relativeX - paddle.width / 2;
+  }
+});
+
+// Тач (телефон)
+document.addEventListener("touchmove", (e) => {
+  let relativeX = e.touches[0].clientX;
+  if(relativeX > 0 && relativeX < width) {
+    paddle.x = relativeX - paddle.width / 2;
+  }
+}, {passive: false});
+
+// Старт по клику
+document.addEventListener("click", startGame);
+document.addEventListener("touchstart", startGame);
+
+// Запуск
+resize();
+</script>
+</body>
+</html>
