@@ -9,8 +9,8 @@
       background: #000;
       overflow: hidden;
       font-family: 'Courier New', sans-serif;
-      touch-action: none; /* Отключаем зум и скролл */
-      cursor: none; /* Скрываем курсор во время игры */
+      touch-action: none;
+      cursor: none; 
     }
     canvas {
       display: block;
@@ -42,6 +42,8 @@
       text-shadow: 0 0 20px #f0f;
       display: none;
       text-align: center;
+      white-space: pre-wrap; /* Чтобы работал перенос строки */
+      line-height: 1.5;
     }
   </style>
 </head>
@@ -68,33 +70,17 @@ let score = 0;
 
 // Шар
 const ball = {
-  x: 0, 
-  y: 0, 
-  dx: 0, 
-  dy: 0, 
-  radius: 8,
-  speed: 7,
-  color: '#fff'
+  x: 0, y: 0, dx: 0, dy: 0, radius: 8, speed: 7, color: '#fff'
 };
 
 // Ракетка
 const paddle = {
-  x: 0,
-  y: 0,
-  width: 120,
-  height: 20,
-  color: '#0ff'
+  x: 0, y: 0, width: 120, height: 20, color: '#0ff'
 };
 
 // Кирпичи
 const brickConfig = {
-  rows: 5,
-  cols: 7,
-  padding: 10,
-  height: 25,
-  width: 0, // Вычислим позже
-  offsetTop: 80,
-  offsetLeft: 35
+  rows: 5, cols: 7, padding: 10, height: 25, width: 0, offsetTop: 80, offsetLeft: 35
 };
 let bricks = [];
 
@@ -105,11 +91,9 @@ function resize() {
   canvas.width = width;
   canvas.height = height;
 
-  // Настройка размеров под экран
   paddle.y = height - 50;
   
-  // Пересчет кирпичей под ширину экрана
-  brickConfig.cols = Math.floor(width / 60); // Сколько влезает
+  brickConfig.cols = Math.floor(width / 60);
   if (brickConfig.cols > 10) brickConfig.cols = 10;
   
   let totalPadding = (brickConfig.cols + 1) * brickConfig.padding;
@@ -142,7 +126,7 @@ function resetGame() {
   
   ball.x = width / 2;
   ball.y = height - 60;
-  ball.dx = 0; // Ждем старта
+  ball.dx = 0; 
   ball.dy = 0;
   
   paddle.x = (width - paddle.width) / 2;
@@ -154,11 +138,9 @@ function resetGame() {
 }
 
 function startGame() {
-  if (gameRunning) return;
   gameRunning = true;
   msgDiv.style.display = 'none';
   
-  // Случайный угол старта
   let dir = Math.random() < 0.5 ? -1 : 1;
   ball.dx = (Math.random() * 4 + 2) * dir;
   ball.dy = -ball.speed;
@@ -166,46 +148,45 @@ function startGame() {
   loop();
 }
 
+// НОВАЯ ФУНКЦИЯ ДЛЯ ОБРАБОТКИ КЛИКА
+function handleInput() {
+  if (gameRunning) return; // Если игра идет, клик ничего не делает
+  
+  // Если игра стоит (начало или проигрыш)
+  resetGame(); // Сначала сбрасываем (ставим шар на место)
+  startGame(); // Потом запускаем
+}
+
+
 // --- ФИЗИКА ---
 function update() {
   if (!gameRunning) return;
 
-  // Движение шара
   ball.x += ball.dx;
   ball.y += ball.dy;
 
-  // Отскок от стен
-  if(ball.x + ball.radius > width || ball.x - ball.radius < 0) {
-    ball.dx = -ball.dx;
-  }
-  if(ball.y - ball.radius < 0) {
-    ball.dy = -ball.dy;
-  }
+  if(ball.x + ball.radius > width || ball.x - ball.radius < 0) ball.dx = -ball.dx;
+  if(ball.y - ball.radius < 0) ball.dy = -ball.dy;
   
-  // Проигрыш (упал вниз)
+  // ПРОИГРЫШ (Ручной рестарт)
   if(ball.y + ball.radius > height) {
-    msgDiv.innerText = "GAME OVER";
+    msgDiv.innerText = "GAME OVER\nTAP TO RESTART"; // Понятная надпись
     msgDiv.style.display = 'block';
     gameRunning = false;
-    setTimeout(resetGame, 2000); // Рестарт через 2 сек
+    // ТАЙМЕР УБРАН. Ждем клика.
     return;
   }
 
   // Отскок от ракетки
   if(ball.x > paddle.x && ball.x < paddle.x + paddle.width &&
      ball.y + ball.radius > paddle.y && ball.y - ball.radius < paddle.y + paddle.height) {
-       
-       // Магия физики: угол отскока зависит от того, куда попал шар
        let hitPoint = ball.x - (paddle.x + paddle.width / 2);
-       // Нормализуем (-1 левый край, 1 правый край)
        hitPoint = hitPoint / (paddle.width / 2);
-       
-       // Изменяем угол
-       ball.dx = hitPoint * 8; // Резкий угол по краям
-       ball.dy = -Math.abs(ball.speed); // Всегда вверх
+       ball.dx = hitPoint * 8;
+       ball.dy = -Math.abs(ball.speed);
   }
 
-  // Столкновение с кирпичами
+  // Кирпичи
   let activeBricks = 0;
   for(let c=0; c<brickConfig.cols; c++) {
     for(let r=0; r<brickConfig.rows; r++) {
@@ -215,21 +196,21 @@ function update() {
         if(ball.x > b.x && ball.x < b.x + brickConfig.width &&
            ball.y > b.y && ball.y < b.y + brickConfig.height) {
              ball.dy = -ball.dy;
-             b.status = 0; // Разбили
+             b.status = 0;
              score += 10;
              scoreSpan.innerText = score;
-             // Ускоряем шар немного с каждым кирпичом
              if(Math.abs(ball.speed) < 12) ball.speed += 0.1; 
         }
       }
     }
   }
   
+  // ПОБЕДА (Тоже ручной рестарт)
   if (activeBricks === 0) {
-    msgDiv.innerText = "YOU WIN!";
+    msgDiv.innerText = "YOU WIN!\nTAP TO PLAY AGAIN";
     msgDiv.style.display = 'block';
     gameRunning = false;
-    setTimeout(resetGame, 3000);
+    // ТАЙМЕР УБРАН
   }
 }
 
@@ -237,7 +218,6 @@ function update() {
 function draw() {
   ctx.clearRect(0, 0, width, height);
 
-  // Кирпичи
   for(let c=0; c<brickConfig.cols; c++) {
     for(let r=0; r<brickConfig.rows; r++) {
       if(bricks[c][r].status == 1) {
@@ -254,13 +234,11 @@ function draw() {
     }
   }
 
-  // Ракетка
   ctx.fillStyle = paddle.color;
   ctx.shadowColor = paddle.color;
   ctx.shadowBlur = 20;
   ctx.fillRect(paddle.x, paddle.y, paddle.width, paddle.height);
 
-  // Шар
   ctx.beginPath();
   ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI*2);
   ctx.fillStyle = ball.color;
@@ -279,54 +257,46 @@ function loop() {
 }
 
 // --- УПРАВЛЕНИЕ ---
-// Мышь
 document.addEventListener("mousemove", (e) => {
   let relativeX = e.clientX;
-  if(relativeX > 0 && relativeX < width) {
-    paddle.x = relativeX - paddle.width / 2;
-  }
+  if(relativeX > 0 && relativeX < width) paddle.x = relativeX - paddle.width / 2;
 });
 
-// Тач (телефон)
 document.addEventListener("touchmove", (e) => {
   let relativeX = e.touches[0].clientX;
-  if(relativeX > 0 && relativeX < width) {
-    paddle.x = relativeX - paddle.width / 2;
-  }
+  if(relativeX > 0 && relativeX < width) paddle.x = relativeX - paddle.width / 2;
 }, {passive: false});
 
-// Старт по клику
-document.addEventListener("click", startGame);
-document.addEventListener("touchstart", startGame);
+// Теперь клик вызывает handleInput вместо startGame
+document.addEventListener("click", handleInput);
+document.addEventListener("touchstart", handleInput);
 
-// Запуск
 resize();
 </script>
-  <style>
-  .back-btn {
-    position: absolute;
-    top: 20px;
-    right: 20px;
-    padding: 10px 20px;
-    border: 2px solid rgba(255, 255, 255, 0.5);
-    border-radius: 30px;
-    color: rgba(255, 255, 255, 0.8);
+
+<style>
+  .home-btn {
+    position: fixed;
+    top: 15px;
+    right: 15px;
+    padding: 8px 15px;
+    background: rgba(0, 0, 0, 0.8);
+    border: 1px solid #f0f; /* Розовая для арканоида */
+    border-radius: 20px;
+    color: #f0f;
     text-decoration: none;
-    font-family: sans-serif;
+    font-family: 'Courier New', monospace;
     font-weight: bold;
-    font-size: 14px;
-    z-index: 9999; /* Чтобы была поверх игры */
-    transition: all 0.3s ease;
-    background: rgba(0, 0, 0, 0.3); /* Полупрозрачный фон */
+    font-size: 16px;
+    z-index: 100000;
+    box-shadow: 0 0 10px #f0f;
   }
-  .back-btn:hover {
-    background: #fff;
+  .home-btn:active {
+    background: #f0f;
     color: #000;
-    border-color: #fff;
-    box-shadow: 0 0 15px white;
-    transform: scale(1.1);
   }
 </style>
-<a href="index.html" class="back-btn">🏠 MENU</a>
+<a href="index.html" class="home-btn">🏠 MENU</a>
+
 </body>
 </html>
